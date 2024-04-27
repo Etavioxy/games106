@@ -3,6 +3,7 @@ cmake_policy(VERSION 2.8)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
 
 set(NAME games_106)
+SET(CMAKE_BUILD_TYPE Debug)
 
 project(${NAME})
 
@@ -149,4 +150,4 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin/")
 
 add_subdirectory(base)
 add_subdirectory(homework)
-# add_subdirectory(examples)
+add_subdirectory(examples)

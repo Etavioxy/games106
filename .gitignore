@@ -233,4 +233,14 @@ data/models/**
 data/textures/**
 data/README_asset_pack.md
 data/font*.*
-data/roboto*.*
+data/robot*.*
+data/Robot*.*
+
+/games106-*
+.cache/
+.vscode/
+/base/libbase.a
+compile_commands.json
+
+/homework/homework1/homework1_1.cpp
+/homework/homework1/homework1_3.cpp
