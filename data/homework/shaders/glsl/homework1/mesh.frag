@@ -1,11 +1,10 @@
 #version 450
 
 layout (set = 1, binding = 0) uniform sampler2D samplerColorMap;
-//metal in cha1nel b, roughness in channel g
-layout (set = 1, binding = 1) uniform sampler2D samplerMetalRoughMap;
-layout (set = 1, binding = 2) uniform sampler2D samplerNormalMap;
-layout (set = 1, binding = 3) uniform sampler2D samplerEmissiveMap;
-layout (set = 1, binding = 4) uniform sampler2D samplerOcclusionMap;
+layout (set = 2, binding = 0) uniform sampler2D samplerNormalMap;
+//metal in chanel b, roughness in chanel g
+layout (set = 3, binding = 0) uniform sampler2D samplerMetalRoughMap;
+layout (set = 4, binding = 0) uniform sampler2D samplerEmissiveMap;
 
 layout (set = 0, binding = 0) uniform UBOScene
 {
@@ -13,13 +12,13 @@ layout (set = 0, binding = 0) uniform UBOScene
 	mat4 view;
 	vec4 lightPos;
 	vec4 viewPos;
-	vec3 bFlagSet;
+	vec4 bFlagSet;
 } uboScene;
-//layout (set = 0, binding = 1) uniform samplerCube samplerIrradiance;
-//layout (set = 0, binding = 2) uniform sampler2D samplerBRDFLUT;
-//layout (set = 0, binding = 3) uniform samplerCube prefilteredMap;
+layout (set = 0, binding = 1) uniform samplerCube samplerIrradiance;
+layout (set = 0, binding = 2) uniform sampler2D samplerBRDFLUT;
+layout (set = 0, binding = 3) uniform samplerCube prefilteredMap;
 
-layout(set = 3, binding = 0) uniform UBOMaterial
+layout(set = 5, binding = 0) uniform UBOMaterial
 {
 	vec3 emissiveFactor; 
 	vec4 baseColorFactor;
@@ -63,16 +62,16 @@ vec3 F_SchlickR(float cosTheta, vec3 F0, float roughness)
 	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-//vec3 prefilteredReflection(vec3 R, float roughness)
-//{
-//	const float MAX_REFLECTION_LOD = 9.0; // todo: param/const
-//	float lod = roughness * MAX_REFLECTION_LOD;
-//	float lodf = floor(lod);
-//	float lodc = ceil(lod);
-//	vec3 a = textureLod(prefilteredMap, R, lodf).rgb;
-//	vec3 b = textureLod(prefilteredMap, R, lodc).rgb;
-//	return mix(a, b, lod - lodf);
-//}
+vec3 prefilteredReflection(vec3 R, float roughness)
+{
+	const float MAX_REFLECTION_LOD = 9.0; // todo: param/const
+	float lod = roughness * MAX_REFLECTION_LOD;
+	float lodf = floor(lod);
+	float lodc = ceil(lod);
+	vec3 a = textureLod(prefilteredMap, R, lodf).rgb;
+	vec3 b = textureLod(prefilteredMap, R, lodc).rgb;
+	return mix(a, b, lod - lodf);
+}
 
 vec3 specularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, float metallic, float roughness, vec3 albedo)
 {
@@ -102,25 +101,6 @@ vec3 specularContribution(vec3 L, vec3 V, vec3 N, vec3 F0, float metallic, float
 	return color;
 }
 
-vec3 brdfContribution(vec3 V, vec3 N, vec3 realN, vec3 F0, float metallic, float roughness, vec3 albedo){
-	//vec3 R = reflect(-V, realN);
-	//vec2 brdf = texture(samplerBRDFLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-	//vec3 reflection = prefilteredReflection(R, roughness).rgb;	
-	//vec3 irradiance = texture(samplerIrradiance, N).rgb;
-
-	// Diffuse based on irradiance
-	//vec3 diffuse = irradiance * albedo;	
-	//vec3 F = F_SchlickR(max(dot(N, V), 0.0), F0, roughness);
-
-	//vec3 kD = 1.0 - F;
-	//kD *= 1.0 - metallic;
-
-	// Specular reflectance
-	//vec3 specular = reflection * (F * brdf.x + brdf.y);
-	//return (kD * diffuse + specular);
-	return vec3(0,0,0);
-}
-
 // ----------------------------------------------------------------------------
 void main() 
 {
@@ -148,11 +128,25 @@ void main()
 		Lo += specularContribution(L, V, N, F0, roughMetalic.y, roughMetalic.x, albedo);
 	}
 
+	vec3 R = reflect(-V, realN);
+	vec2 brdf = texture(samplerBRDFLUT, vec2(max(dot(N, V), 0.0), roughMetalic.x)).rg;
+	vec3 reflection = prefilteredReflection(R, roughMetalic.x).rgb;	
+	vec3 irradiance = texture(samplerIrradiance, N).rgb;
+
+	// Diffuse based on irradiance
+	vec3 diffuse = irradiance * albedo;	
+	vec3 F = F_SchlickR(max(dot(N, V), 0.0), F0, roughMetalic.x);
+
+	// Specular reflectance
+	vec3 specular = reflection * (F * brdf.x + brdf.y);
+
 	// Ambient part
+	vec3 kD = 1.0 - F;
+	kD *= 1.0 - roughMetalic.y;
 	vec3 indirectRadiance = vec3(0.0);
-	if(0.0 > 1.0)
+	if(uboScene.bFlagSet.y > 0.0)
 	{
-		indirectRadiance = brdfContribution(V, N, realN, F0, roughMetalic.y, roughMetalic.x, albedo);
+		indirectRadiance = (kD * diffuse + specular);
 	}
 
 	//Emissive color

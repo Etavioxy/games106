@@ -5,7 +5,6 @@ layout (location = 1) in vec3 inNormal;
 layout (location = 2) in vec2 inUV;
 layout (location = 3) in vec3 inColor;
 layout (location = 4) in vec3 inTangent;
-layout (location = 5) in int inNodeIndex;
 
 layout (set = 0, binding = 0) uniform UBOScene
 {
@@ -13,10 +12,10 @@ layout (set = 0, binding = 0) uniform UBOScene
 	mat4 view;
 	vec4 lightPos;
 	vec4 viewPos;
-	vec3 bFlagSet;
+	vec4 bFlagSet;
 } uboScene;
 
-layout(std430, set = 2, binding = 0) readonly buffer nodeMatrices
+layout(std430, set = 6, binding = 0) readonly buffer nodeMatrices
 {
 	mat4 nodeMat[];
 };
@@ -28,7 +27,7 @@ layout (location = 3) out vec3 outTangent;
 
 void main() 
 {
-	int nodeId = inNodeIndex;
+	int nodeId = int(inColor.z);
 	mat4 mat = nodeMat[nodeId];
 	outNormal = inNormal;
 	outUV = inUV;
