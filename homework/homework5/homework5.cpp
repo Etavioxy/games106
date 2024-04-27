@@ -45,6 +45,8 @@ public:
 		vks::Buffer params;
 	} uniformBuffers;
 
+    vks::Buffer instanceBuffer;
+
 	struct UBOMatrices {
 		glm::mat4 projection;
 		glm::mat4 model;
@@ -95,6 +97,7 @@ public:
 		uniformBuffers.object.destroy();
 		uniformBuffers.skybox.destroy();
 		uniformBuffers.params.destroy();
+        instanceBuffer.destroy();
 
 		textures.environmentCube.destroy();
 		textures.irradianceCube.destroy();
@@ -159,7 +162,8 @@ public:
 			// Objects
 			vkCmdBindDescriptorSets(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets.object, 0, NULL);
 			vkCmdBindPipeline(drawCmdBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelines.pbr);
-			models.object.draw(drawCmdBuffers[i]);
+			vkCmdBindVertexBuffers(drawCmdBuffers[i], 1, 1, &instanceBuffer.buffer, offsets);
+			models.object.draw(drawCmdBuffers[i],0, nullptr, 1, 4*4*4);
 
 			drawUI(drawCmdBuffers[i]);
 
@@ -280,6 +284,45 @@ public:
 		// Enable depth test and write
 		depthStencilState.depthWriteEnable = VK_TRUE;
 		depthStencilState.depthTestEnable = VK_TRUE;
+
+
+		VkPipelineVertexInputStateCreateInfo vertexInput{};
+		vertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+		// Vertex input bindings
+		// The instancing pipeline uses a vertex input state with two bindings
+		std::array<VkVertexInputBindingDescription, 2> bindingDescriptions = {
+			// Binding point 0: Mesh vertex layout description at per-vertex rate
+			vks::initializers::vertexInputBindingDescription(0, sizeof(vkglTF::Vertex), VK_VERTEX_INPUT_RATE_VERTEX),
+			// Binding point 1: Instanced data at per-instance rate
+			vks::initializers::vertexInputBindingDescription(1, sizeof(glm::vec3), VK_VERTEX_INPUT_RATE_INSTANCE)
+		};
+
+		vertexInput.vertexBindingDescriptionCount = bindingDescriptions.size();
+		vertexInput.pVertexBindingDescriptions = bindingDescriptions.data();
+
+        // Vertex attribute bindings
+		// Note that the shader declaration for per-vertex and per-instance attributes is the same, the different input rates are only stored in the bindings:
+		// instanced.vert:
+		//	layout (location = 0) in vec3 inPos;		Per-Vertex
+		//	...
+		//	layout (location = 4) in vec3 instancePos;	Per-Instance
+		std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions = {
+			// Per-vertex attributes
+			// These are advanced for each vertex fetched by the vertex shader
+			vks::initializers::vertexInputAttributeDescription(0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0),					// Location 0: Position
+			vks::initializers::vertexInputAttributeDescription(0, 1, VK_FORMAT_R32G32B32_SFLOAT, sizeof(float) * 3),	// Location 1: Normal
+			vks::initializers::vertexInputAttributeDescription(0, 2, VK_FORMAT_R32G32_SFLOAT, sizeof(float) * 6),		// Location 2: UV
+			vks::initializers::vertexInputAttributeDescription(0, 3, VK_FORMAT_R32G32B32A32_SFLOAT, sizeof(float) * 20),	// Location 3: Tangent
+			// Per-Instance attributes
+			// These are fetched for each instance rendered
+			vks::initializers::vertexInputAttributeDescription(1, 4, VK_FORMAT_R32G32B32_SFLOAT, 0),					// Location 4: Position
+			
+		};
+		vertexInput.vertexAttributeDescriptionCount = attributeDescriptions.size();
+		vertexInput.pVertexAttributeDescriptions = attributeDescriptions.data();
+        pipelineCI.pVertexInputState = &vertexInput;
+
 		VK_CHECK_RESULT(vkCreateGraphicsPipelines(device, pipelineCache, 1, &pipelineCI, nullptr, &pipelines.pbr));
 	}
 
@@ -1279,6 +1322,29 @@ public:
 		updateParams();
 	}
 
+	void prepareInstanceBuffer()
+	{
+		constexpr int num_size = 4;
+
+		VK_CHECK_RESULT(vulkanDevice->createBuffer(
+			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			&instanceBuffer,
+			sizeof(glm::vec3) * num_size * num_size * num_size));
+
+		std::array<glm::vec3, num_size* num_size* num_size> insntace_pos{};
+		for (int x = 0; x < num_size; ++x)
+			for (int y = 0; y < num_size; ++y)
+				for (int z = 0; z < num_size; ++z)
+				{
+					constexpr int offset = num_size / 2;
+					insntace_pos[x + num_size * y + num_size * num_size * z] = glm::vec3(x - offset, y - offset, (z - offset) * 3);
+				}
+		VK_CHECK_RESULT(instanceBuffer.map());
+		memcpy(instanceBuffer.mapped, insntace_pos.data(), sizeof(insntace_pos));
+		instanceBuffer.unmap();
+	}
+
 	void updateUniformBuffers()
 	{
 		// 3D object
@@ -1323,6 +1389,7 @@ public:
 		generateIrradianceCube();
 		generatePrefilteredCube();
 		prepareUniformBuffers();
+		prepareInstanceBuffer();
 		setupDescriptors();
 		preparePipelines();
 		buildCommandBuffers();
