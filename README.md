@@ -75,6 +75,6 @@ float3 Tonemap_ACES(const float3 c) {
 
 reference论文在: [data/Visually Lossless Content and Motion Adaptive Shading in Games.pdf](./data/Visually%20Lossless%20Content%20and%20Motion%20Adaptive%20Shading%20in%20Games.pdf)
 
-### homework5
-homework5 比较独立，作业的框架代码以及作业要求：[GAMES106-HW5](https://github.com/Chaphlagical/GAMES106-HW5)
+### homework3
+homework3 比较独立，作业的框架代码以及作业要求：[GAMES106-HW5](https://github.com/Chaphlagical/GAMES106-HW5)
  
