@@ -82,6 +82,7 @@ set(HOMEWORKS
 	homework1
 	homework2
 	homework4
+	homework5
 )
 
 buildHomeworks()
